@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cash Counter POS</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #2979ff;
+            --primary-dark: #1565c0;
+            --secondary: #00e676;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --text-color: #37474f;
+            --error: #ff1744;
+            --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --shadow-hover: 0 10px 15px rgba(0, 0, 0, 0.15);
+            --radius: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Prompt', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding-bottom: 140px;
+            /* Space for sticky footer */
+            min-height: 100vh;
+        }
+
+        /* --- Header & Tabs --- */
+        header {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 20px 20px 50px 20px;
+            border-bottom-left-radius: 30px;
+            border-bottom-right-radius: 30px;
+            box-shadow: 0 4px 15px rgba(41, 121, 255, 0.4);
+            text-align: center;
+            position: relative;
+        }
+
+        h1 {
+            font-weight: 600;
+            font-size: 1.6rem;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .mode-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        .mode-switch {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            display: inline-flex;
+            padding: 5px;
+            position: relative;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .mode-btn {
+            border: none;
+            background: transparent;
+            color: rgba(255, 255, 255, 0.9);
+            padding: 10px 24px;
+            border-radius: 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 400;
+        }
+
+        .mode-btn.active {
+            background: white;
+            color: var(--primary-dark);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            font-weight: 600;
+        }
+
+        /* --- Dashboard / Target Area --- */
+        .dashboard {
+            margin: -35px 20px 20px 20px;
+            background: white;
+            padding: 25px;
+            border-radius: 24px;
+            box-shadow: var(--shadow);
+            position: relative;
+            z-index: 10;
+        }
+
+        .target-control {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .target-label {
+            font-size: 1rem;
+            color: #78909c;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .target-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f5f5f5;
+            padding: 5px 12px;
+            border-radius: 12px;
+        }
+
+        .target-input {
+            border: none;
+            background: transparent;
+            width: 100px;
+            text-align: right;
+            font-size: 1.1rem;
+            color: var(--primary-dark);
+            font-weight: 700;
+            outline: none;
+        }
+
+        .progress-container {
+            height: 12px;
+            background: #eceff1;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 15px 0;
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--secondary);
+            width: 0%;
+            transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 6px;
+        }
+
+        .status-text {
+            text-align: right;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-color);
+            transition: color 0.3s;
+        }
+
+        .status-text.complete {
+            color: var(--secondary);
+            animation: bounce 0.5s ease;
+        }
+
+        .status-text.over {
+            color: var(--error);
+        }
+
+        /* --- Money Grid --- */
+        .container {
+            padding: 0 15px;
+            max-width: 1800px;
+            /* Increased to allow single row on wide screens */
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            /* Reduced min-width slightly */
+            gap: 15px;
+        }
+
+        .money-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px 15px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .money-card:focus-within {
+            border-color: var(--primary);
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-hover);
+        }
+
+        .money-img {
+            width: auto;
+            height: 70px;
+            /* Fixed height for consistency */
+            margin-bottom: 12px;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+            transition: transform 0.2s;
+        }
+
+        .money-card:hover .money-img {
+            transform: scale(1.05);
+        }
+
+        .money-label {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #546e7a;
+            font-weight: 500;
+        }
+
+        .input-group {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .qty-input {
+            width: 100%;
+            padding: 8px;
+            font-size: 1.2rem;
+            text-align: center;
+            border: 2px solid #eceff1;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.2s;
+            color: var(--text-color);
+            background: #fafafa;
+            -moz-appearance: textfield;
+        }
+
+        .qty-input::-webkit-inner-spin-button,
+        .qty-input::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .qty-input:focus {
+            border-color: var(--primary);
+            background: white;
+        }
+
+        /* Stepper Buttons */
+        .btn-stepper {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: #607d8b;
+            background: #eceff1;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            padding-bottom: 3px;
+            /* visual center fix */
+        }
+
+        .btn-stepper:hover {
+            background: #cfd8dc;
+        }
+
+        .btn-stepper:active {
+            transform: scale(0.9);
+        }
+
+        .btn-stepper.plus {
+            background: #e3f2fd;
+            color: var(--primary);
+        }
+
+        .btn-stepper.plus:hover {
+            background: #bbdefb;
+        }
+
+        .subtotal {
+            margin-top: 10px;
+            font-size: 0.95rem;
+            color: #90a4ae;
+            font-weight: 600;
+        }
+
+        .subtotal.active {
+            color: var(--primary-dark);
+        }
+
+        /* --- Sticky Footer --- */
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+            border-top-left-radius: 25px;
+            border-top-right-radius: 25px;
+        }
+
+        .total-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .total-label {
+            font-size: 0.85rem;
+            color: #78909c;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .total-amount {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary-dark);
+            line-height: 1.1;
+        }
+
+        .btn-reset {
+            background: #ffebee;
+            color: var(--error);
+            border: none;
+            width: 55px;
+            height: 55px;
+            border-radius: 16px;
+            font-size: 1.4rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            border: 1px solid #ffcdd2;
+        }
+
+        .btn-reset:hover {
+            background: #ffcdd2;
+            transform: rotate(90deg);
+        }
+
+        /* Toast & Animations */
+        @keyframes bounce {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+        }
+
+        @keyframes footerGlow {
+            0% {
+                box-shadow: 0 -4px 20px rgba(0, 230, 118, 0.3);
+            }
+
+            50% {
+                box-shadow: 0 -4px 40px rgba(0, 230, 118, 0.6);
+            }
+
+            100% {
+                box-shadow: 0 -4px 20px rgba(0, 230, 118, 0.3);
+            }
+        }
+
+        .glow-effect {
+            animation: footerGlow 2s infinite;
+            border-top: 3px solid var(--secondary);
+        }
+
+        .toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            background: white;
+            padding: 2.5rem;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+            text-align: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 200;
+            min-width: 300px;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .toast-icon {
+            font-size: 4rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .toast h2 {
+            color: var(--text-color);
+            margin-bottom: 5px;
+        }
+
+        .toast p {
+            color: #78909c;
+            font-size: 1.1rem;
+        }
+
+        /* Responsive Mobile */
+        @media (max-width: 480px) {
+            .grid {
+                grid-template-columns: 1fr;
+                /* Single Column as requested */
+                gap: 15px;
+            }
+
+            .money-card {
+                margin-bottom: 0;
+                padding: 15px;
+                /* Optional: Switch to horizontal row for single column mobile? 
+                   Let's keep vertical card for now as they asked for 'Grid' earlier. 
+                   If they want horizontal inside card, they would have accepted the List View. */
+            }
+
+            .money-img {
+                height: 60px;
+            }
+
+            .qty-input {
+                padding: 8px;
+                font-size: 1.2rem;
+            }
+
+            .btn-stepper {
+                width: 36px;
+                /* Larger touch target */
+                height: 36px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>🧾 ระบบนับเงินสด</h1>
+        <div class="mode-container">
+            <div class="mode-switch">
+                <button class="mode-btn active" onclick="setMode('drawer')">เงินทอน (5,000)</button>
+                <button class="mode-btn" onclick="setMode('general')">นับทั่วไป</button>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard">
+        <div class="target-control">
+            <div class="target-label" id="targetLabelLabel">
+                🎯 ยอดเป้าหมาย
+            </div>
+            <div class="target-input-wrapper">
+                <input type="number" id="targetInput" class="target-input" value="5000" disabled
+                    oninput="updateCalculations()">
+                <span>฿</span>
+            </div>
+        </div>
+        <div class="progress-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="status-text" id="statusText">ขาดอีก 5,000 ฿</div>
+    </div>
+
+    <div class="container">
+        <div class="grid">
+            <!-- เหรียญ -->
+            <!-- 1 THB -->
+            <div class="money-card">
+                <img src="img/1.png" alt="1 บาท" class="money-img">
+                <div class="money-label">เหรียญ 1</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(1, -1)">-</button>
+                    <input type="number" data-val="1" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(1, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-1">0 ฿</div>
+            </div>
+
+            <!-- 2 THB -->
+            <div class="money-card">
+                <img src="img/2.png" alt="2 บาท" class="money-img">
+                <div class="money-label">เหรียญ 2</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(2, -1)">-</button>
+                    <input type="number" data-val="2" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(2, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-2">0 ฿</div>
+            </div>
+
+            <!-- 5 THB -->
+            <div class="money-card">
+                <img src="img/5.png" alt="5 บาท" class="money-img">
+                <div class="money-label">เหรียญ 5</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(5, -1)">-</button>
+                    <input type="number" data-val="5" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(5, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-5">0 ฿</div>
+            </div>
+
+            <!-- 10 THB -->
+            <div class="money-card">
+                <img src="img/10.png" alt="10 บาท" class="money-img">
+                <div class="money-label">เหรียญ 10</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(10, -1)">-</button>
+                    <input type="number" data-val="10" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(10, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-10">0 ฿</div>
+            </div>
+
+            <!-- ธนบัตร -->
+            <!-- 20 THB -->
+            <div class="money-card">
+                <img src="img/20.png" alt="20 บาท" class="money-img">
+                <div class="money-label">แบงค์ 20</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(20, -1)">-</button>
+                    <input type="number" data-val="20" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(20, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-20">0 ฿</div>
+            </div>
+
+            <!-- 50 THB -->
+            <div class="money-card">
+                <img src="img/50.png" alt="50 บาท" class="money-img">
+                <div class="money-label">แบงค์ 50</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(50, -1)">-</button>
+                    <input type="number" data-val="50" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(50, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-50">0 ฿</div>
+            </div>
+
+            <!-- 100 THB -->
+            <div class="money-card">
+                <img src="img/100.png" alt="100 บาท" class="money-img">
+                <div class="money-label">แบงค์ 100</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(100, -1)">-</button>
+                    <input type="number" data-val="100" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(100, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-100">0 ฿</div>
+            </div>
+
+            <!-- 500 THB (Added back as requested) -->
+            <div class="money-card">
+                <img src="img/500.png" alt="500 บาท" class="money-img">
+                <div class="money-label">แบงค์ 500</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(500, -1)">-</button>
+                    <input type="number" data-val="500" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(500, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-500">0 ฿</div>
+            </div>
+
+            <!-- 1000 THB -->
+            <div class="money-card">
+                <img src="img/1000.png" alt="1000 บาท" class="money-img">
+                <div class="money-label">แบงค์ 1000</div>
+                <div class="input-group">
+                    <button class="btn-stepper" onclick="stepVal(1000, -1)">-</button>
+                    <input type="number" data-val="1000" class="qty-input" placeholder="0" min="0"
+                        oninput="validateInput(this)">
+                    <button class="btn-stepper plus" onclick="stepVal(1000, 1)">+</button>
+                </div>
+                <div class="subtotal" id="sub-1000">0 ฿</div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Sticky Footer -->
+    <div class="footer" id="stickyFooter">
+        <div class="total-info">
+            <span class="total-label">ยอดรวมสุทธิ</span>
+            <span class="total-amount" id="grandTotal">0</span>
+        </div>
+        <button class="btn-reset" onclick="resetAll()" title="ล้างค่าทั้งหมด">
+            🗑️
+        </button>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="successToast">
+        <span class="toast-icon">🎉</span>
+        <h2 id="toastTitle">สำเร็จ!</h2>
+        <p id="toastMessage">คุณนับเงินครบตามจำนวนแล้ว</p>
+    </div>
+
+    <script>
+        // --- State ---
+        let currentMode = 'drawer'; // 'drawer' | 'general'
+        let hasCelebrated = false;
+
+        // --- Sound Effect (Simple Beep) ---
+        // Using AudioContext for POS 'Ding' Sound
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playPosSound() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sine';
+            // High pitch 'Ding'
+            oscillator.frequency.setValueAtTime(1200, audioCtx.currentTime);
+            oscillator.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.3);
+
+            gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + 0.3);
+        }
+
+        // --- Core Functions ---
+
+        function validateInput(el) {
+            // No negative numbers
+            if (el.value < 0) el.value = 0;
+            // Remove leading zero if length > 1
+            if (el.value.length > 1 && el.value.startsWith('0')) {
+                el.value = parseInt(el.value);
+            }
+            updateCalculations();
+        }
+
+        function stepVal(denom, change) {
+            const el = document.querySelector(`input[data-val="${denom}"]`);
+            let val = parseInt(el.value) || 0;
+            val += change;
+            if (val < 0) val = 0;
+            el.value = val;
+            updateCalculations();
+
+            // Optimize for mobile touch
+            if (navigator.vibrate) navigator.vibrate(10);
+        }
+
+        function setMode(mode) {
+            currentMode = mode;
+            hasCelebrated = false;
+
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            const targetInput = document.getElementById('targetInput');
+            const targetLabel = document.getElementById('targetLabelLabel');
+
+            if (mode === 'drawer') {
+                targetInput.value = 5000;
+                targetInput.disabled = true;
+                targetLabel.innerHTML = '🎯 เป้าเงินทอน';
+            } else {
+                targetInput.value = targetInput.value === "5000" ? 1000 : targetInput.value;
+                targetInput.disabled = false;
+                targetInput.focus();
+                targetLabel.innerHTML = '🎯 เป้าหมายกำหนดเอง';
+            }
+
+            resetVisuals();
+            updateCalculations();
+        }
+
+        function updateCalculations() {
+            let total = 0;
+            const inputs = document.querySelectorAll('.qty-input');
+
+            // 1. Calculate Sums
+            inputs.forEach(input => {
+                const denom = parseInt(input.getAttribute('data-val'));
+                const qty = parseInt(input.value) || 0;
+                const sum = denom * qty;
+                total += sum;
+
+                const subEl = document.getElementById(`sub-${denom}`);
+                subEl.innerText = sum.toLocaleString() + ' ฿';
+                if (qty > 0) subEl.classList.add('active');
+                else subEl.classList.remove('active');
+            });
+
+            // 2. Update Footer
+            document.getElementById('grandTotal').innerText = total.toLocaleString() + ' ฿';
+
+            // 3. Check Target
+            checkTarget(total);
+        }
+
+        function checkTarget(currentTotal) {
+            const targetInput = document.getElementById('targetInput');
+            let target = parseInt(targetInput.value) || 0;
+
+            // Avoid division by zero
+            if (target === 0) target = 1;
+
+            // Progress Bar
+            const progressBar = document.getElementById('progressBar');
+            let percent = (currentTotal / target) * 100;
+            if (percent > 100) percent = 100;
+            progressBar.style.width = percent + '%';
+
+            // Status Text
+            const statusEl = document.getElementById('statusText');
+            const diff = target - currentTotal;
+
+            if (diff > 0) {
+                statusEl.innerText = `ขาดอีก ${diff.toLocaleString()} ฿`;
+                statusEl.className = 'status-text';
+                progressBar.style.background = 'var(--secondary)';
+                hasCelebrated = false; // Reset trigger if they go below again
+                resetVisuals();
+            } else if (diff === 0) {
+                statusEl.innerText = 'ครบตามจำนวนแล้ว!';
+                statusEl.className = 'status-text complete';
+                progressBar.style.background = '#00c853';
+
+                if (!hasCelebrated) {
+                    celebrate();
+                    hasCelebrated = true; // One time trigger per success
+                }
+            } else {
+                statusEl.innerText = `เกินจำนวน ${Math.abs(diff).toLocaleString()} ฿`;
+                statusEl.className = 'status-text over';
+                progressBar.style.background = 'var(--error)';
+                // Don't celebrate if over, per request
+            }
+        }
+
+        function celebrate() {
+            playPosSound();
+
+            // Confetti
+            confetti({
+                particleCount: 150,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#2979ff', '#00e676', '#ffeb3b']
+            });
+
+            // UI Feedback
+            const footer = document.getElementById('stickyFooter');
+            footer.classList.add('glow-effect');
+
+            const toast = document.getElementById('successToast');
+            const title = document.getElementById('toastTitle');
+            const msg = document.getElementById('toastMessage');
+
+            if (currentMode === 'drawer') {
+                title.innerText = "ยินดีด้วย!";
+                msg.innerText = "เงินทอนครบ 5,000 บาทแล้ว";
+            } else {
+                title.innerText = "นับครบแล้ว!";
+                msg.innerText = "ยอดเงินครบตามเป้าหมาย";
+            }
+
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function resetVisuals() {
+            document.getElementById('stickyFooter').classList.remove('glow-effect');
+        }
+
+        function resetAll() {
+            if (confirm('ต้องการล้างค่าการนับทั้งหมด?')) {
+                document.querySelectorAll('.qty-input').forEach(i => i.value = '');
+                updateCalculations();
+                hasCelebrated = false;
+                resetVisuals();
+            }
+        }
+
+        // Initial check
+        updateCalculations();
+
+    </script>
+</body>
+
+</html>
